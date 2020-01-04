@@ -59,6 +59,22 @@
 				<groupId>org.mule.tools.maven</groupId>
 				<artifactId>mule-maven-plugin</artifactId>
 				<version>2.3.3</version>
+				<configuration>
+					<standaloneDeployment>
+						<muleVersion>${mule.version}</muleVersion>
+						<muleHome>${mule.home}</muleHome>
+						<applicationName>${artifactId}</applicationName>
+					</standaloneDeployment>
+				</configuration>
+				<executions>
+					<execution>
+						<id>deploy</id>
+						<phase>deploy</phase>
+						<goals>
+							<goal>deploy</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
