@@ -1,9 +1,10 @@
-import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.yaml.snakeyaml.Yaml;
 
-import java.util.Properties;
+import java.io.InputStream;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class DynamicYamlLoader {
@@ -17,40 +18,46 @@ public final class DynamicYamlLoader {
     }
 
     public static ConcurrentHashMap<String, String> getProperties(String filePath) {
-        // If file was already loaded, return cached
         if (fileCache.containsKey(filePath)) {
             return fileCache.get(filePath);
         }
 
-        ConcurrentHashMap<String, String> loadedProperties = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, String> flatMap = new ConcurrentHashMap<>();
 
-        try {
-            Resource resource = resolveResource(filePath);
+        try (InputStream input = resolveResource(filePath).getInputStream()) {
+            Yaml yaml = new Yaml();
+            Object loadedYaml = yaml.load(input);
 
-            YamlPropertiesFactoryBean yamlFactory = new YamlPropertiesFactoryBean();
-            yamlFactory.setResources(resource);
-
-            Properties props = yamlFactory.getObject();
-
-            if (props == null || props.isEmpty()) {
-                throw new IllegalStateException("No properties found in YAML file: " + filePath);
+            if (loadedYaml instanceof Map) {
+                flattenMap("", (Map<String, Object>) loadedYaml, flatMap);
+            } else {
+                throw new IllegalStateException("Unexpected YAML structure in file: " + filePath);
             }
 
-            props.forEach((k, v) -> loadedProperties.put(k.toString(), v.toString()));
-
-            fileCache.put(filePath, loadedProperties); // Cache for reuse
-
+            fileCache.put(filePath, flatMap);
         } catch (Exception e) {
-            throw new RuntimeException("Error loading YAML file: " + filePath, e);
+            throw new RuntimeException("Failed to load YAML file: " + filePath, e);
         }
 
-        return loadedProperties;
+        return flatMap;
+    }
+
+    private static void flattenMap(String parentKey, Map<String, Object> source, Map<String, String> target) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            String key = parentKey.isEmpty() ? entry.getKey() : parentKey + "." + entry.getKey();
+            Object value = entry.getValue();
+
+            if (value instanceof Map) {
+                flattenMap(key, (Map<String, Object>) value, target);
+            } else {
+                target.put(key, String.valueOf(value));
+            }
+        }
     }
 
     private static Resource resolveResource(String filePath) {
         if (filePath.startsWith("classpath:")) {
-            String path = filePath.substring("classpath:".length());
-            return new ClassPathResource(path);
+            return new ClassPathResource(filePath.substring("classpath:".length()));
         } else {
             return new FileSystemResource(filePath);
         }
