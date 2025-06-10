@@ -1,0 +1,19 @@
+SET SERVEROUTPUT ON SIZE 1000000
+DECLARE
+    v_xml XMLTYPE;
+    v_id  your_table.primary_key_column%TYPE;
+    v_counter NUMBER := 0;
+BEGIN
+    FOR rec IN (SELECT primary_key_column, clob_column FROM your_table) LOOP
+        BEGIN
+            v_xml := XMLTYPE(rec.clob_column);
+        EXCEPTION
+            WHEN OTHERS THEN
+                DBMS_OUTPUT.PUT_LINE('Invalid XML in row ID=' || rec.primary_key_column
+                                     || ' Error=' || SQLERRM);
+                v_counter := v_counter + 1;
+        END;
+    END LOOP;
+    DBMS_OUTPUT.PUT_LINE('Total invalid rows: ' || v_counter);
+END;
+/
